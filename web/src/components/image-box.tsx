@@ -1,3 +1,4 @@
+// Import statements...
 // Component for dragging and dropping images which will be sent to ML Model for detection
 "use client"
 import LeafSVG from "@/components/assets/Leaf"
@@ -9,63 +10,62 @@ import { useQuery } from "@tanstack/react-query"
 import Result from "@/components/result"
 import { ReloadIcon } from "@radix-ui/react-icons"
 
-interface FormData {
-  images: (string | ArrayBuffer | null)[]
-  similar_images: boolean
-}
-
 export function ImageBox() {
-  const [imageFile, setImageFile] = useState<File | null>(null)
-  const [formData, setFormData] = useState<FormData[]>([])
-  const [imageURL, setImageURL] = useState<string>()
-  const { toast } = useToast()
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [formData, setFormData] = useState<FormData | null>(null);
+  const [imageURL, setImageURL] = useState<string>();
+  const { toast } = useToast();
+  const { isInitialLoading, error, data, refetch } = useQuery({
+    queryKey: ["plantData"],
+    enabled: false,
+    queryFn: async () => {
+      try {
+        const response = await fetch(
+          "https://plant.id/api/v3/health_assessment?language=en&details=local_name,description,url,treatment,classification,common_names,cause",
+          {
+            method: "POST",
+            headers: {
+              "Api-Key": process.env.NEXT_PUBLIC_PLANT_ID_API_KEY!,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(formData),
+          }
+        );
+  
+        if (!response.ok) {
+          throw new Error('Failed to fetch plant data');
+        }
+  
+        return response.json();
+      } catch (error) {
+        console.error('Error fetching plant data:', error);
+        throw error; // Rethrow the error to be caught by React Query
+      }
+    },
+  });
+  
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!imageFile) return;
+
+    let reader = new FileReader();
+
+    // Converting Image to Base64 string
+  
+
+    reader.readAsDataURL(imageFile);
+    await refetch();
+  }
 
   function onImageUpload(e: ChangeEvent<HTMLInputElement>) {
-    if (!e.target.files || !e.target.files[0]) return
-    setImageFile(e.target.files[0] ?? null)
+    if (!e.target.files || !e.target.files[0]) return;
+    setImageFile(e.target.files[0] ?? null);
     toast({
       variant: "success",
       title: "Image Uploaded",
       description: `${e.target.files[0].name} Uploaded Successfully`,
-    })
-    setImageURL(URL.createObjectURL(e.target.files[0]))
-  }
-
-  const { isInitialLoading, error, data, refetch } = useQuery({
-    queryKey: ["plantData"],
-    enabled: false,
-    queryFn: () =>
-      fetch(
-        "https://plant.id/api/v3/health_assessment?language=en&details=local_name,description,url,treatment,classification,common_names,cause",
-        {
-          method: "POST",
-          headers: {
-            "Api-Key": process.env.NEXT_PUBLIC_PLANT_ID_API_KEY!,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(formData[0]),
-        }
-      ).then((res) => res.json()),
-  })
-
-  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    if (!imageFile) return
-
-    let reader = new FileReader()
-
-    // Converting Image to Base64 string
-    reader.readAsDataURL(imageFile)
-
-    reader.onload = function () {
-      const bodyData = {
-        images: [reader.result],
-        similar_images: true,
-      }
-      formData.push(bodyData)
-    }
-
-    await refetch()
+    });
+    setImageURL(URL.createObjectURL(e.target.files[0]));
   }
 
   return (
@@ -101,7 +101,6 @@ export function ImageBox() {
             ) : (
               <div className="flex flex-col justify-center gap-4 items-center">
                 <p>{imageFile.name} Uploaded!</p>
-                {/* Disable the button when the process is running or already previous data is there */}
                 <Button type="submit" disabled={isInitialLoading || data}>
                   {isInitialLoading && (
                     <ReloadIcon className="mr-2 h-4 w-4 animate-spin" />
@@ -113,7 +112,8 @@ export function ImageBox() {
           </div>
         </div>
       </form>
-      {data ? <Result data={data} /> : ""}
+      
+      {data && <Result data={data} />}
     </section>
-  )
+  );
 }
